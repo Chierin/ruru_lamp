@@ -29,21 +29,25 @@ func (d *dispatcher) runProcesser() {
 		for {
 			select {
 			case meta := <-d.processChan:
-				meta.handler(meta.ctx)
+				func() {
+					// 防止程序寄了
+					defer RecoverAndPrint()
+					meta.handler(meta.ctx)
+				}()
 			}
 		}
 	}()
 }
 
-func (d *dispatcher) addTask(evt string, handler Handler) {
+func (d *dispatcher) addHandler(evt string, handler Handler) {
 	d.dispatchMap[evt] = append(d.dispatchMap[evt], handler)
 }
 
 func (d *dispatcher) dispatch(evt string, data interface{}) {
 	ctx := d.makeContext(evt, data)
-	handlers, ok := d.dispatchMap["evt"]
+	handlers, ok := d.dispatchMap[evt]
 	if !ok {
-		fmt.Println("创建分发任务失败，该事件不存在")
+		fmt.Printf("创建分发任务失败，事件【%s】不存在\n", evt)
 		return
 	}
 	for _, handler := range handlers {
