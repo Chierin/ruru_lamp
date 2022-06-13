@@ -1,30 +1,29 @@
 package core
 
 import (
-	"fmt"
 	"time"
 )
 
 type Handler func(ctx *Context)
 
-type processMeta struct {
+type notifyMeta struct {
 	handler Handler
 	ctx     *Context
 }
 
-type pubber struct {
+type Pubber struct {
 	pubberMap  map[string][]Handler
-	notifyChan chan *processMeta
+	notifyChan chan *notifyMeta
 }
 
-func NewPubber() *pubber {
-	return &pubber{
+func NewPubber() *Pubber {
+	return &Pubber{
 		pubberMap:  map[string][]Handler{},
-		notifyChan: make(chan *processMeta),
+		notifyChan: make(chan *notifyMeta),
 	}
 }
 
-func (d *pubber) Start() {
+func (d *Pubber) Start() {
 	go func() {
 		for meta := range d.notifyChan {
 			func() {
@@ -36,19 +35,19 @@ func (d *pubber) Start() {
 	}()
 }
 
-func (d *pubber) AddSub(evt string, handler Handler) {
+func (d *Pubber) AddSub(evt string, handler Handler) {
 	d.pubberMap[evt] = append(d.pubberMap[evt], handler)
 }
 
-func (d *pubber) Pub(evt string, data interface{}) {
-	ctx := d.makeContext(evt, data)
+func (d *Pubber) Pub(evt string, state *State) {
+	ctx := d.makeContext(evt, *state)
 	handlers, ok := d.pubberMap[evt]
 	if !ok {
-		fmt.Printf("创建分发任务失败，事件【%s】不存在\n", evt)
+		Logger.Warnf("发布失败，事件【%s】不存在", evt)
 		return
 	}
 	for _, handler := range handlers {
-		d.notifyChan <- &processMeta{
+		d.notifyChan <- &notifyMeta{
 			handler: handler,
 			ctx:     ctx,
 		}
@@ -56,10 +55,10 @@ func (d *pubber) Pub(evt string, data interface{}) {
 
 }
 
-func (d *pubber) makeContext(evt string, data interface{}) *Context {
+func (d *Pubber) makeContext(evt string, state State) *Context {
 	return &Context{
 		Event:     evt,
 		Timestamp: time.Now().UnixMilli(),
-		Data:      data,
+		State:     state,
 	}
 }
