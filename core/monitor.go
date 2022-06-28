@@ -1,6 +1,7 @@
 package core
 
 import (
+	"ruru_lamp/core/model"
 	"strconv"
 	"time"
 )
@@ -114,20 +115,31 @@ func (m *Monitor) UpdateState() {
 		newState := tranLiveStateToState(&liveState)
 		if oldState.IsLive == false && newState.IsLive == true {
 			// 开播
-			m.pubber.Pub(EventLiveStart, newState)
+			m.onLiveStart(oldState, newState)
 		} else if oldState.IsLive == true && newState.IsLive == false {
 			// 下播
-			oldState.EndTime = time.Now().Unix()
-			oldState.IsLive = false
-			m.pubber.Pub(EventLiveStop, oldState)
+			m.onLiveStop(oldState, newState)
 		} else if oldState.IsLive == newState.IsLive == true && oldState.StartTime != newState.StartTime {
 			// 反复横跳，光速下播又开播
-			oldState.EndTime = time.Now().UnixMilli()
-			oldState.IsLive = false
-			m.pubber.Pub(EventLiveStop, oldState)
-			m.pubber.Pub(EventLiveStart, newState)
+			m.onLiveStop(oldState, newState)
+			m.onLiveStart(oldState, newState)
 		}
+
 	}
+}
+
+func (m *Monitor) onLiveStart(oldState *State, newState *State) {
+	model.AddLive(db, newState.UserID, newState.StartTime, newState.Title)
+	m.cache.Update(*newState)
+	m.pubber.Pub(EventLiveStart, newState)
+}
+
+func (m *Monitor) onLiveStop(oldState *State, newState *State) {
+	oldState.EndTime = time.Now().Unix()
+	oldState.IsLive = false
+	model.UpdateLive(db, oldState.UserID, oldState.EndTime)
+	m.cache.Update(*oldState)
+	m.pubber.Pub(EventLiveStop, oldState)
 }
 
 func tranLiveStateToState(liveState *LiveState) *State {
