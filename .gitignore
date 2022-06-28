@@ -1,2 +1,4 @@
 /test
 *_test.go
+*.db
+.vscode
